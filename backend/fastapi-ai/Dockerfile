@@ -31,7 +31,7 @@ RUN python -m pip install --upgrade pip setuptools wheel cython \
  && pip install --no-cache-dir --prefer-binary -r /tmp/requirements.txt
 
 # copy app sources
-COPY backend/fastapi-ai/ /app/
+COPY backend/fastapi-ai/app/
 
 # expose (optional)
 EXPOSE 8000
