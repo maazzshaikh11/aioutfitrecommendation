@@ -1,9 +1,10 @@
+# backend/fastapi-ai/Dockerfile
 FROM python:3.11-slim
 
 ENV PYTHONUNBUFFERED=1
 WORKDIR /app
 
-# system deps for numpy/scipy/sklearn/faiss/psycopg2
+# system deps needed to build/consume numpy/scipy/sklearn/faiss/psycopg2
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
     build-essential \
@@ -22,20 +23,20 @@ RUN apt-get update \
     libgomp1 \
  && rm -rf /var/lib/apt/lists/*
 
-# copy requirements first for better cache
-COPY backend/fastapi-ai/requirements.txt /tmp/requirements.txt
+# copy requirements from THIS folder
+COPY requirements.txt /tmp/requirements.txt
 
-# upgrade pip & install (prefer binary wheels)
+# upgrade pip/setuptools/wheel and prefer binary wheels
 RUN python -m pip install --upgrade pip setuptools wheel cython \
  && pip install --no-cache-dir --prefer-binary -r /tmp/requirements.txt
 
-# copy the app code and start script
-COPY backend/fastapi-ai/ /app/
+# copy the app code (copies contents of backend/fastapi-ai into /app)
+COPY . /app
 
-# ensure start script is executable
+# make sure start script is executable
 RUN chmod +x /app/start.sh
 
 EXPOSE 8000
 
-# CMD will be used by Render — start.sh expands $PORT at runtime
-CMD ["/app/start.sh"]
+# start via shell so env var expansion works and logs show properly
+CMD ["sh", "-c", "/app/start.sh"]
