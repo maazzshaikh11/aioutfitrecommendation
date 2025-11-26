@@ -1,9 +1,9 @@
-# backend/fastapi-ai/Dockerfile
 FROM python:3.11-slim
 
 ENV PYTHONUNBUFFERED=1
 WORKDIR /app
 
+# system deps needed to build/consume numpy/scipy/sklearn/faiss/psycopg2
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
     build-essential \
@@ -22,16 +22,19 @@ RUN apt-get update \
     libgomp1 \
  && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt .
+# copy requirements first for caching
+COPY backend/fastapi-ai/requirements.txt /tmp/requirements.txt
 
 RUN python -m pip install --upgrade pip setuptools wheel cython \
- && pip install --no-cache-dir --prefer-binary -r requirements.txt
+ && pip install --no-cache-dir --prefer-binary -r /tmp/requirements.txt
 
-COPY . .
+# copy app + start script
+COPY backend/fastapi-ai/ /app/
 
-COPY start.sh /start.sh
-RUN chmod +x /start.sh
+# ensure start.sh is executable
+RUN chmod +x /app/start.sh
 
 EXPOSE 8000
 
-CMD ["/start.sh"]
+# run start script; it reads $PORT at runtime
+CMD ["/app/start.sh"]
