@@ -1,10 +1,9 @@
-# backend/fastapi-ai/Dockerfile
 FROM python:3.11-slim
 
 ENV PYTHONUNBUFFERED=1
 WORKDIR /app
 
-# system deps needed to build many scientific packages
+# system deps for numpy/scipy/sklearn/faiss/psycopg2
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
     build-essential \
@@ -23,18 +22,20 @@ RUN apt-get update \
     libgomp1 \
  && rm -rf /var/lib/apt/lists/*
 
-# copy requirements and install them (cache layer)
+# copy requirements first for better cache
 COPY backend/fastapi-ai/requirements.txt /tmp/requirements.txt
 
-# upgrade pip/setuptools/wheel for better binary wheel handling
+# upgrade pip & install (prefer binary wheels)
 RUN python -m pip install --upgrade pip setuptools wheel cython \
  && pip install --no-cache-dir --prefer-binary -r /tmp/requirements.txt
 
-# copy app sources
-COPY backend/fastapi-ai/app/
+# copy the app code and start script
+COPY backend/fastapi-ai/ /app/
 
-# expose (optional)
+# ensure start script is executable
+RUN chmod +x /app/start.sh
+
 EXPOSE 8000
 
-# Start via shell so $PORT expands. If PORT not set, use 8000.
-CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --proxy-headers"]
+# CMD will be used by Render — start.sh expands $PORT at runtime
+CMD ["/app/start.sh"]
