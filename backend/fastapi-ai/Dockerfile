@@ -33,6 +33,11 @@ RUN python -m pip install --upgrade pip setuptools wheel cython \
 # copy app
 COPY . .
 
+# add the start script and make it executable
+COPY start.sh /start.sh
+RUN chmod +x /start.sh
+
 EXPOSE 8000
 
-CMD sh -c "uvicorn app.main:app --host 0.0.0.0 --port ${PORT}"
+# use the shell script so environment var expansion works; fallback to 8000
+CMD ["/start.sh"]
