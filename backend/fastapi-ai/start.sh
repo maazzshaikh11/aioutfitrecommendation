@@ -1,8 +1,11 @@
-#!/bin/sh
-set -e
+#!/usr/bin/env sh
 
-# runtime port fallback to 8000 for local dev
-PORT_TO_USE="${PORT:-8000}"
+# default port fallback if $PORT not provided by the platform
+PORT="${PORT:-8000}"
 
-echo "Starting FastAPI on port ${PORT_TO_USE}"
-exec uvicorn app.main:app --host 0.0.0.0 --port "${PORT_TO_USE}"
+# optional workers setting (uncomment if you want)
+# WORKERS=${UVICORN_WORKERS:-1}
+
+# exec replaces shell so signals are forwarded
+exec uvicorn app.main:app --host 0.0.0.0 --port "$PORT"
+# If you need reload in dev: uvicorn app.main:app --host 0.0.0.0 --port "$PORT" --reload
