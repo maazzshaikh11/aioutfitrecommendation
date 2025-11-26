@@ -1,4 +1,8 @@
-#!/usr/bin/env sh
-# start.sh
-: "${PORT:=8000}"   # default PORT=8000 if not provided
-exec uvicorn app.main:app --host 0.0.0.0 --port "$PORT" --proxy-headers
+#!/bin/sh
+set -e
+
+# runtime port fallback to 8000 for local dev
+PORT_TO_USE="${PORT:-8000}"
+
+echo "Starting FastAPI on port ${PORT_TO_USE}"
+exec uvicorn app.main:app --host 0.0.0.0 --port "${PORT_TO_USE}"
