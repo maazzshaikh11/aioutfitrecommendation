@@ -1,24 +1,29 @@
-from fastapi import FastAPI, HTTPException, Depends
+# backend/fastapi-ai/app/main.py
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 import logging
+import os
 from pathlib import Path
 
-# Import your router module correctly!
+# routers & services
 from app.routes.auth import router as auth_router
 from app.routes import recommend, dataset
-from app.database import engine, Base
-from app.services.ml_engine import MLEngine
-from app.services.dataset_processor import DatasetProcessor
 from app.routes.users import router as users_router
 
+# DB helper (safe init)
+from app.database import init_db
 
-# Configure logging
+# ML services (your own modules)
+from app.services.ml_engine import MLEngine
+from app.services.dataset_processor import DatasetProcessor
+
+# logging
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("app.main")
 
 app = FastAPI(
     title="AI Fashion Recommendation API",
@@ -28,7 +33,7 @@ app = FastAPI(
     redoc_url="/redoc"
 )
 
-# CORS middleware
+# CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -37,10 +42,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Initialize services
-ml_engine = None
-dataset_processor = None
-
+# service placeholders
+ml_engine: MLEngine | None = None
+dataset_processor: DatasetProcessor | None = None
 
 
 @app.on_event("startup")
@@ -48,25 +52,36 @@ async def startup_event():
     global ml_engine, dataset_processor
 
     logger.info("Starting AI Fashion Recommendation API...")
-    Base.metadata.create_all(bind=engine)
 
+    # attempt DB init but don't crash app if DB is unreachable
+    ok = init_db(create_tables=True, raise_on_error=False)
+    if not ok:
+        logger.warning(
+            "Database init failed — app will continue running but DB-backed endpoints will fail until DB is reachable."
+        )
+    else:
+        logger.info("Database initialized successfully.")
+
+    # Initialize ML services (non-fatal errors are caught and logged)
     try:
         ml_engine = MLEngine()
         dataset_processor = DatasetProcessor()
 
         models_dir = Path("models")
         if models_dir.exists():
+            # load_models is async in your original code, so we await it
             await ml_engine.load_models(models_dir)
-            logger.info("Pre-trained models loaded successfully")
+            logger.info("Pre-trained models loaded successfully.")
         else:
-            logger.warning("No pre-trained models found. Will train on first use.")
+            logger.warning("No pre-trained models found. Will train or prepare on first use.")
     except Exception as e:
-        logger.error(f"Failed to initialize ML services: {e}")
+        logger.exception("Failed to initialize ML services: %s", e)
 
-# Include routers
+
+# routers
 app.include_router(recommend.router, prefix="/api/ai", tags=["recommendations"])
 app.include_router(dataset.router, prefix="/api/ai", tags=["dataset"])
-app.include_router(auth_router, prefix="/api/auth")  # THIS IS THE IMPORTANT PART
+app.include_router(auth_router, prefix="/api/auth")
 app.include_router(users_router, prefix="/api/user")
 
 
@@ -84,6 +99,7 @@ def root():
         ]
     }
 
+
 @app.get("/health")
 def health_check():
     return {
@@ -92,17 +108,28 @@ def health_check():
         "dataset_processor_ready": dataset_processor is not None
     }
 
-# Static files for serving images if needed
+
+# Static files for serving images if present
 static_dir = Path("static")
 if static_dir.exists():
     app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
+
 if __name__ == "__main__":
     import uvicorn
+
+    # pick PORT from env (Render/Render-like platforms provide $PORT). fallback to 8000 locally.
+    port_env = os.getenv("PORT", "8000")
+    try:
+        port = int(port_env)
+    except ValueError:
+        logger.warning("Invalid PORT env var %r — falling back to 8000", port_env)
+        port = 8000
+
     uvicorn.run(
         "app.main:app",
         host="0.0.0.0",
-        port=8000,  # Set to your desired port
-        reload=True,
+        port=port,
+        reload=False,  # disable reload in prod containers
         log_level="info"
     )
